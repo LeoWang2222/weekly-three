@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>这周值得</title>
+<meta name="description" content="每周三件事:一个目标、一份期待、一个没有白过的理由。">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#f7f3ec">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="这周值得">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="app-header">
+  <div class="header-inner">
+    <div class="brand">这周值得</div>
+    <button id="menu-btn" class="icon-btn" aria-label="菜单">⋯</button>
+  </div>
+</header>
+
+<main id="main">
+
+  <!-- ===== 本周 ===== -->
+  <section id="view-week" class="view">
+    <div class="week-nav">
+      <button id="prev-week" class="nav-btn" aria-label="上一周">‹</button>
+      <div class="week-title">
+        <div id="week-label" class="week-label"></div>
+        <div id="week-range" class="week-range"></div>
+      </div>
+      <button id="next-week" class="nav-btn" aria-label="下一周">›</button>
+    </div>
+
+    <div class="card">
+      <div class="q-label"><span class="q-emoji">🎯</span>这周我最想完成的一件事</div>
+      <textarea id="f-goal" rows="2" placeholder="一件就够,够得着的那种…"></textarea>
+      <label class="done-toggle" id="done-wrap" hidden>
+        <input type="checkbox" id="f-done">
+        <span>这周结束时,我完成了 ✓</span>
+      </label>
+    </div>
+
+    <div class="card">
+      <div class="q-label"><span class="q-emoji">✨</span>这周我最期待的一件事</div>
+      <textarea id="f-anticipation" rows="2" placeholder="让这周有个盼头…"></textarea>
+    </div>
+
+    <div class="card card-sunday">
+      <div class="q-label"><span class="q-emoji">🌅</span>因为哪件事,这周没有白过</div>
+      <div class="q-hint">周日晚上,花两分钟回头看看</div>
+      <textarea id="f-highlight" rows="2" placeholder="无论多小,都值得记下来…"></textarea>
+    </div>
+
+    <div id="save-hint" class="save-hint"></div>
+  </section>
+
+  <!-- ===== 时光轴 ===== -->
+  <section id="view-timeline" class="view" hidden>
+    <div class="section-title">时光轴</div>
+    <div id="timeline-list"></div>
+    <div id="timeline-empty" class="empty" hidden>
+      还没有记录。<br>从「本周」开始,写下这一周的三件事吧。
+    </div>
+  </section>
+
+  <!-- ===== 年度 ===== -->
+  <section id="view-year" class="view" hidden>
+    <div class="week-nav">
+      <button id="prev-year" class="nav-btn" aria-label="上一年">‹</button>
+      <div class="week-title"><div id="year-label" class="week-label"></div></div>
+      <button id="next-year" class="nav-btn" aria-label="下一年">›</button>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><div id="stat-weeks" class="stat-num">0</div><div class="stat-label">已记录周数</div></div>
+      <div class="stat"><div id="stat-streak" class="stat-num">0</div><div class="stat-label">连续记录(周)</div></div>
+      <div class="stat"><div id="stat-done" class="stat-num">0</div><div class="stat-label">完成的目标</div></div>
+    </div>
+
+    <div class="section-title">每周一格</div>
+    <div id="year-grid" class="year-grid"></div>
+
+    <div class="section-title">这一年,「没有白过」的理由</div>
+    <div id="year-highlights"></div>
+    <div id="year-empty" class="empty" hidden>这一年还没有「没有白过」的记录。</div>
+  </section>
+
+</main>
+
+<!-- ===== 底部 Tab ===== -->
+<nav class="tabbar">
+  <button class="tab active" data-view="view-week"><span class="tab-icon">📝</span>本周</button>
+  <button class="tab" data-view="view-timeline"><span class="tab-icon">🕰</span>时光轴</button>
+  <button class="tab" data-view="view-year"><span class="tab-icon">🗓</span>年度</button>
+</nav>
+
+<!-- ===== 菜单 ===== -->
+<div id="menu-mask" class="menu-mask" hidden></div>
+<div id="menu-sheet" class="menu-sheet" hidden>
+  <button id="m-export" class="menu-item">📤 导出备份(JSON)</button>
+  <button id="m-import" class="menu-item">📥 导入备份</button>
+  <button id="m-ics" class="menu-item">📅 添加每周日提醒到日历</button>
+  <button id="m-about" class="menu-item">ℹ️ 关于</button>
+  <button id="m-cancel" class="menu-item menu-cancel">取消</button>
+</div>
+<input type="file" id="import-file" accept="application/json,.json" hidden>
+
+<div id="about-mask" class="menu-mask" hidden></div>
+<div id="about-sheet" class="menu-sheet about-sheet" hidden>
+  <div class="about-body">
+    <b>这周值得</b><br>
+    每周三件事:一个目标、一份期待、一个没有白过的理由。<br>
+    一年之后,你会攒下 52 个「没有白过」。<br><br>
+    数据只保存在你自己的手机里,可定期从菜单导出备份。
+  </div>
+  <button id="about-close" class="menu-item menu-cancel">好</button>
+</div>
+
+<noscript><p style="padding:2rem;text-align:center">这个小应用需要开启 JavaScript 才能使用。</p></noscript>
+<script src="app.js"></script>
+</body>
+</html>
