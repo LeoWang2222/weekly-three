@@ -25,7 +25,7 @@
   }
 
   function getWeek(key) {
-    return state.weeks[key] || { goal: '', anticipation: '', highlight: '', done: false };
+    return state.weeks[key] || { goal: '', anticipation: '', highlight: '', done: false, reviewed: false };
   }
   function hasContent(key) {
     var w = state.weeks[key];
@@ -80,12 +80,20 @@
 
   function $(id) { return document.getElementById(id); }
 
+  function esc(s) {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
   /* ---------- 本周视图 ---------- */
   var fields = { goal: $('f-goal'), anticipation: $('f-anticipation'), highlight: $('f-highlight') };
 
   function autoGrow(t) {
     t.style.height = 'auto';
     t.style.height = t.scrollHeight + 'px';
+  }
+
+  function updateShareBtn() {
+    $('share-btn').hidden = !fields.highlight.value.trim();
   }
 
   function renderWeek() {
@@ -99,6 +107,8 @@
     $('f-done').checked = !!w.done;
     $('done-wrap').hidden = !w.goal.trim();
     autoGrow(fields.goal); autoGrow(fields.anticipation); autoGrow(fields.highlight);
+    updateShareBtn();
+    renderReview();
     window.scrollTo(0, 0);
   }
 
@@ -108,6 +118,7 @@
       w[name] = fields[name].value;
       state.weeks[viewKey] = w;
       if (name === 'goal') $('done-wrap').hidden = !w.goal.trim();
+      if (name === 'highlight') updateShareBtn();
       autoGrow(fields[name]);
       save();
     });
@@ -124,6 +135,269 @@
   $('next-week').addEventListener('click', function () {
     if (viewKey !== todayKey) { viewKey = shiftKey(viewKey, 1); renderWeek(); }
   });
+
+  /* ---------- 上周回顾闭环 ---------- */
+  function renderReview() {
+    var card = $('review-card');
+    var prevKey = shiftKey(todayKey, -1);
+    var prev = getWeek(prevKey);
+    var show = viewKey === todayKey && prev.goal.trim() && !prev.done && !prev.reviewed;
+    card.hidden = !show;
+    if (show) {
+      $('review-q').textContent = '上周(' + fmtKey(prevKey).replace(/^\d+ /, '') + ')你想完成:';
+      $('review-goal').textContent = prev.goal;
+    }
+  }
+
+  $('review-yes').addEventListener('click', function () {
+    var prevKey = shiftKey(todayKey, -1);
+    var prev = getWeek(prevKey);
+    prev.done = true;
+    state.weeks[prevKey] = prev;
+    save();
+    renderReview();
+  });
+  $('review-no').addEventListener('click', function () {
+    var prevKey = shiftKey(todayKey, -1);
+    var prev = getWeek(prevKey);
+    prev.reviewed = true;
+    state.weeks[prevKey] = prev;
+    save();
+    renderReview();
+  });
+
+  /* ---------- 写作提示库 ---------- */
+  var PROMPTS = {
+    goal: [
+      '这周想推进的一件工作/学习任务',
+      '一个想坚持 7 天的小习惯',
+      '见一个人,或打一通道电话',
+      '整理一个拖了很久的角落',
+      '读完一本书的一章',
+      '运动三次,每次半小时',
+      '把一件难事拆解出第一步',
+      '早睡五天',
+      '学会一道新菜',
+      '处理一件一直回避的事'
+    ],
+    anticipation: [
+      '一顿期待已久的饭',
+      '和某个人的见面',
+      '一本书 / 一部剧的更新',
+      '一个正在路上的快递',
+      '周末的一次小出行',
+      '一件事即将完成的成就感',
+      '可以好好睡一觉的早晨',
+      '一场演出或比赛',
+      '一个没有任何安排的晚上',
+      '发工资的那天'
+    ],
+    highlight: [
+      '这周谁让你笑过?',
+      '哪件小事你做到了,值得肯定?',
+      '这周学会了什么新东西?',
+      '有什么瞬间想感谢?',
+      '哪顿饭吃得最开心?',
+      '这周帮了谁,或被谁帮了?',
+      '身体有没有变好一点?',
+      '看了什么好书或好电影?',
+      '哪次路上的风景不错?',
+      '有什么烦恼其实过去了?',
+      '这周最放松的一刻?',
+      '完成了什么拖了很久的事?',
+      '和谁好好聊了一次天?',
+      '有什么意外的小惊喜?',
+      '哪笔钱花得特别值?',
+      '这周的你比上周强在哪?',
+      '有什么习惯坚持下来了?',
+      '哪句话打动过你?',
+      '吃了什么想再吃一次的?',
+      '哪个瞬间觉得「活着真好」?',
+      '解决了什么麻烦事?',
+      '有没有人对你说了谢谢?',
+      '什么事让你觉得自己被需要?',
+      '放下了什么执念?',
+      '哪一刻完全属于你自己?',
+      '工作 / 学习上有什么小进展?',
+      '做了什么让未来的自己感谢的事?',
+      '这周最勇敢的决定?',
+      '哪个家人或老朋友让你想起就暖?',
+      '如果给这周配一首 BGM,会是什么?'
+    ]
+  };
+
+  function shuffle(arr) {
+    for (var i = arr.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var t = arr[i]; arr[i] = arr[j]; arr[j] = t;
+    }
+    return arr;
+  }
+
+  var promptPool = {};
+  var promptIdx = { goal: 0, anticipation: 0, highlight: 0 };
+
+  function initHints() {
+    ['goal', 'anticipation', 'highlight'].forEach(function (name) {
+      promptPool[name] = shuffle(PROMPTS[name].slice());
+      var chip = $('hint-' + name);
+      var field = fields[name];
+      function showPrompt() {
+        chip.textContent = '💡 ' + promptPool[name][promptIdx[name] % promptPool[name].length];
+      }
+      chip.addEventListener('click', function () {
+        if (!field.value.trim()) {
+          field.value = promptPool[name][promptIdx[name] % promptPool[name].length];
+          field.dispatchEvent(new Event('input'));
+        }
+        promptIdx[name]++;
+        showPrompt();
+      });
+      showPrompt();
+    });
+  }
+
+  /* ---------- 分享卡片 ---------- */
+  var SHARE_FONT = '-apple-system, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif';
+
+  function wrapText(ctx, text, maxWidth) {
+    var lines = [];
+    text.split('\n').forEach(function (para) {
+      var line = '';
+      for (var i = 0; i < para.length; i++) {
+        var ch = para[i];
+        if (line && ctx.measureText(line + ch).width > maxWidth) {
+          lines.push(line);
+          line = ch;
+        } else {
+          line += ch;
+        }
+      }
+      lines.push(line);
+    });
+    return lines;
+  }
+
+  function drawShareCard() {
+    var canvas = $('share-canvas');
+    var W = 1080, H = 1350, pad = 100;
+    canvas.width = W;
+    canvas.height = H;
+    var ctx = canvas.getContext('2d');
+
+    var bg = '#f7f3ec', accent = '#d96c47', ink = '#2b2620', muted = '#9a9186', soft = '#f3ddcf';
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = accent;
+    ctx.fillRect(0, 0, W, 14);
+    ctx.textBaseline = 'top';
+
+    ctx.fillStyle = accent;
+    ctx.font = '600 42px ' + SHARE_FONT;
+    ctx.fillText('这周值得', pad, 92);
+
+    ctx.fillStyle = muted;
+    ctx.font = '32px ' + SHARE_FONT;
+    ctx.textAlign = 'right';
+    ctx.fillText(fmtKey(viewKey), W - pad, 98);
+    ctx.textAlign = 'left';
+
+    ctx.fillStyle = soft;
+    ctx.font = '700 300px Georgia, serif';
+    ctx.fillText('“', pad - 14, 270);
+
+    ctx.fillStyle = accent;
+    ctx.font = '600 40px ' + SHARE_FONT;
+    ctx.fillText('🌅 这周没有白过,因为', pad, 600);
+
+    var content = fields.highlight.value.trim();
+    var size = content.length > 120 ? 44 : content.length > 60 ? 52 : 60;
+    ctx.fillStyle = ink;
+    ctx.font = size + 'px ' + SHARE_FONT;
+    var lines = wrapText(ctx, content, W - pad * 2).slice(0, 8);
+    var lh = size * 1.75;
+    var y = 690;
+    for (var i = 0; i < lines.length; i++) {
+      ctx.fillText(lines[i], pad, y);
+      y += lh;
+    }
+
+    ctx.textAlign = 'center';
+    ctx.fillStyle = muted;
+    ctx.font = '28px ' + SHARE_FONT;
+    ctx.fillText(fmtRange(viewKey) + ' · 每周三件事,一年攒下 52 个「没有白过」', W / 2, H - 132);
+    ctx.fillStyle = accent;
+    ctx.font = '600 30px ' + SHARE_FONT;
+    ctx.fillText('「这周值得」', W / 2, H - 84);
+    ctx.textAlign = 'left';
+  }
+
+  function showShareOverlay(blob) {
+    $('share-img').src = URL.createObjectURL(blob);
+    $('share-overlay').hidden = false;
+  }
+
+  $('share-btn').addEventListener('click', function () {
+    drawShareCard();
+    $('share-canvas').toBlob(function (blob) {
+      if (!blob) return;
+      var file = null;
+      try {
+        file = new File([blob], 'worth-a-week-' + viewKey + '.png', { type: 'image/png' });
+      } catch (e) {}
+      if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
+        navigator.share({ files: [file] }).catch(function (err) {
+          if (!err || err.name !== 'AbortError') showShareOverlay(blob);
+        });
+      } else {
+        showShareOverlay(blob);
+      }
+    }, 'image/png');
+  });
+
+  $('share-close').addEventListener('click', function () {
+    $('share-overlay').hidden = true;
+    URL.revokeObjectURL($('share-img').src);
+  });
+
+  /* ---------- 首次引导 ---------- */
+  var OB_STEPS = [
+    { emoji: '🎯', title: '周一,立一个小目标', text: '「这周我最想完成的一件事」——一件就够,够得着的那种。' },
+    { emoji: '✨', title: '给这周一个盼头', text: '写下「这周我最期待的一件事」,等待本身也是快乐。' },
+    { emoji: '🌅', title: '周日,回头看', text: '「因为哪件事,这周没有白过?」一年之后,你会攒下 52 个「没有白过」。' }
+  ];
+  var obStep = 0;
+
+  function renderOb() {
+    var s = OB_STEPS[obStep];
+    $('ob-emoji').textContent = s.emoji;
+    $('ob-title').textContent = s.title;
+    $('ob-text').textContent = s.text;
+    var dots = $('ob-dots');
+    dots.innerHTML = '';
+    for (var i = 0; i < OB_STEPS.length; i++) {
+      var d = document.createElement('span');
+      d.className = 'ob-dot' + (i === obStep ? ' on' : '');
+      dots.appendChild(d);
+    }
+    $('ob-next').textContent = obStep === OB_STEPS.length - 1 ? '开始记录 →' : '下一步';
+  }
+
+  function initOnboarding() {
+    if (state.seenOnboarding) return;
+    $('onboarding').hidden = false;
+    renderOb();
+    $('ob-next').addEventListener('click', function () {
+      if (obStep < OB_STEPS.length - 1) {
+        obStep++;
+        renderOb();
+      } else {
+        state.seenOnboarding = true;
+        save();
+        $('onboarding').hidden = true;
+      }
+    });
+  }
 
   /* ---------- 时光轴 ---------- */
   function renderTimeline() {
@@ -153,10 +427,6 @@
       card.innerHTML = html;
       list.appendChild(card);
     });
-  }
-
-  function esc(s) {
-    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 
   /* ---------- 年度 ---------- */
@@ -275,7 +545,7 @@
       try {
         var d = JSON.parse(reader.result);
         if (!d || typeof d.weeks !== 'object') throw new Error('bad file');
-        state = { v: 1, weeks: d.weeks };
+        state = { v: 1, weeks: d.weeks, seenOnboarding: true };
         save();
         renderWeek();
         alert('导入成功 ✓');
@@ -315,6 +585,8 @@
 
   /* ---------- 启动 ---------- */
   renderWeek();
+  initHints();
+  initOnboarding();
 
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function () {

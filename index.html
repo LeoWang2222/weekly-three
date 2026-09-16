@@ -37,9 +37,20 @@
       <button id="next-week" class="nav-btn" aria-label="下一周">›</button>
     </div>
 
+    <div id="review-card" class="card review-card" hidden>
+      <div class="q-label"><span class="q-emoji">🔁</span>先花 10 秒,回顾上周</div>
+      <div class="review-q" id="review-q"></div>
+      <div id="review-goal" class="review-goal"></div>
+      <div class="review-btns">
+        <button id="review-yes" class="btn btn-primary" type="button">完成了 ✓</button>
+        <button id="review-no" class="btn" type="button">没完成</button>
+      </div>
+    </div>
+
     <div class="card">
       <div class="q-label"><span class="q-emoji">🎯</span>这周我最想完成的一件事</div>
       <textarea id="f-goal" rows="2" placeholder="一件就够,够得着的那种…"></textarea>
+      <button class="hint-chip" id="hint-goal" type="button"></button>
       <label class="done-toggle" id="done-wrap" hidden>
         <input type="checkbox" id="f-done">
         <span>这周结束时,我完成了 ✓</span>
@@ -49,12 +60,17 @@
     <div class="card">
       <div class="q-label"><span class="q-emoji">✨</span>这周我最期待的一件事</div>
       <textarea id="f-anticipation" rows="2" placeholder="让这周有个盼头…"></textarea>
+      <button class="hint-chip" id="hint-anticipation" type="button"></button>
     </div>
 
     <div class="card card-sunday">
       <div class="q-label"><span class="q-emoji">🌅</span>因为哪件事,这周没有白过</div>
       <div class="q-hint">周日晚上,花两分钟回头看看</div>
       <textarea id="f-highlight" rows="2" placeholder="无论多小,都值得记下来…"></textarea>
+      <button class="hint-chip" id="hint-highlight" type="button"></button>
+      <div class="card-actions">
+        <button id="share-btn" class="btn-ghost" type="button" hidden>📸 生成分享图</button>
+      </div>
     </div>
 
     <div id="save-hint" class="save-hint"></div>
@@ -121,6 +137,28 @@
   </div>
   <button id="about-close" class="menu-item menu-cancel">好</button>
 </div>
+
+<!-- ===== 首次引导 ===== -->
+<div id="onboarding" class="ob-mask" hidden>
+  <div class="ob-card">
+    <div class="brand ob-brand">这周值得</div>
+    <div id="ob-emoji" class="ob-emoji"></div>
+    <div id="ob-title" class="ob-title"></div>
+    <div id="ob-text" class="ob-text"></div>
+    <div id="ob-dots" class="ob-dots"></div>
+    <button id="ob-next" class="btn btn-primary ob-btn" type="button"></button>
+  </div>
+</div>
+
+<!-- ===== 分享图预览(无法调起系统分享时的兜底) ===== -->
+<div id="share-overlay" class="share-mask" hidden>
+  <div class="share-box">
+    <img id="share-img" alt="分享卡片">
+    <div class="share-tip">长按图片,选择「存储到照片」</div>
+    <button id="share-close" class="btn share-close" type="button">关闭</button>
+  </div>
+</div>
+<canvas id="share-canvas" hidden></canvas>
 
 <noscript><p style="padding:2rem;text-align:center">这个小应用需要开启 JavaScript 才能使用。</p></noscript>
 <script src="app.js"></script>
