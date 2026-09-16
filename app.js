@@ -96,6 +96,19 @@
     $('share-btn').hidden = !fields.highlight.value.trim();
   }
 
+  // 周日/周一的情境提示
+  function renderContext() {
+    var el = $('week-context');
+    var day = new Date().getDay();
+    var text = '';
+    if (viewKey === todayKey) {
+      if (day === 0) text = '今天是周日,花两分钟回顾这周吧 🌅';
+      else if (day === 1) text = '新的一周,从一个小目标开始 🎯';
+    }
+    el.textContent = text;
+    el.hidden = !text;
+  }
+
   function renderWeek() {
     $('week-label').textContent = fmtKey(viewKey) + (viewKey === todayKey ? ' · 本周' : '');
     $('week-range').textContent = fmtRange(viewKey);
@@ -108,7 +121,9 @@
     $('done-wrap').hidden = !w.goal.trim();
     autoGrow(fields.goal); autoGrow(fields.anticipation); autoGrow(fields.highlight);
     updateShareBtn();
+    renderContext();
     renderReview();
+    renderCapsule();
     window.scrollTo(0, 0);
   }
 
@@ -136,35 +151,60 @@
     if (viewKey !== todayKey) { viewKey = shiftKey(viewKey, 1); renderWeek(); }
   });
 
-  /* ---------- 上周回顾闭环 ---------- */
+  /* ---------- 上周回顾闭环(目标 + 期待) ---------- */
   function renderReview() {
-    var card = $('review-card');
     var prevKey = shiftKey(todayKey, -1);
     var prev = getWeek(prevKey);
-    var show = viewKey === todayKey && prev.goal.trim() && !prev.done && !prev.reviewed;
-    card.hidden = !show;
-    if (show) {
-      $('review-q').textContent = '上周(' + fmtKey(prevKey).replace(/^\d+ /, '') + ')你想完成:';
+    var showGoal = viewKey === todayKey && prev.goal.trim() && !prev.done && !prev.reviewed;
+    var showExp = viewKey === todayKey && prev.anticipation.trim() && prev.fulfilled === undefined;
+    $('review-goal-block').hidden = !showGoal;
+    $('review-exp-block').hidden = !showExp;
+    $('review-card').hidden = !(showGoal || showExp);
+    if (showGoal) {
+      $('review-q-goal').textContent = '上周(' + fmtKey(prevKey).replace(/^\d+ /, '') + ')你想完成:';
       $('review-goal').textContent = prev.goal;
+    }
+    if (showExp) {
+      $('review-exp').textContent = prev.anticipation;
     }
   }
 
-  $('review-yes').addEventListener('click', function () {
+  function answerReview(patch) {
     var prevKey = shiftKey(todayKey, -1);
     var prev = getWeek(prevKey);
-    prev.done = true;
+    for (var k in patch) prev[k] = patch[k];
     state.weeks[prevKey] = prev;
     save();
     renderReview();
-  });
-  $('review-no').addEventListener('click', function () {
-    var prevKey = shiftKey(todayKey, -1);
-    var prev = getWeek(prevKey);
-    prev.reviewed = true;
-    state.weeks[prevKey] = prev;
-    save();
-    renderReview();
-  });
+  }
+  $('review-yes').addEventListener('click', function () { answerReview({ done: true }); });
+  $('review-no').addEventListener('click', function () { answerReview({ reviewed: true }); });
+  $('exp-yes').addEventListener('click', function () { answerReview({ fulfilled: true }); });
+  $('exp-no').addEventListener('click', function () { answerReview({ fulfilled: false }); });
+
+  /* ---------- 去年这周(时间胶囊) ---------- */
+  function renderCapsule() {
+    var p = viewKey.split('-W');
+    var lastKey = (+p[0] - 1) + '-W' + p[1];
+    var card = $('capsule-card');
+    if (!hasContent(lastKey)) { card.hidden = true; return; }
+    var w = getWeek(lastKey);
+    var html = '';
+    if (w.goal.trim()) {
+      html += '<div class="tl-item"><div class="tl-q">🎯 当时想完成</div>' +
+        '<div class="tl-a">' + esc(w.goal) + '</div></div>';
+    }
+    if (w.anticipation.trim()) {
+      html += '<div class="tl-item"><div class="tl-q">✨ 当时最期待</div>' +
+        '<div class="tl-a">' + esc(w.anticipation) + '</div></div>';
+    }
+    if (w.highlight.trim()) {
+      html += '<div class="tl-item"><div class="tl-q">🌅 当时的「没有白过」</div>' +
+        '<div class="tl-a">' + esc(w.highlight) + '</div></div>';
+    }
+    $('capsule-body').innerHTML = html;
+    card.hidden = false;
+  }
 
   /* ---------- 写作提示库 ---------- */
   var PROMPTS = {
@@ -399,6 +439,20 @@
     });
   }
 
+  /* ---------- 安装引导条(仅 iOS Safari、未添加到主屏幕时) ---------- */
+  function initInstallBanner() {
+    var isIOS = /iP(hone|ad|od)/.test(navigator.userAgent);
+    var standalone = window.navigator.standalone === true ||
+      (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+    if (!isIOS || standalone || state.installBannerDismissed) return;
+    setTimeout(function () { $('install-banner').hidden = false; }, 2500);
+    $('install-close').addEventListener('click', function () {
+      $('install-banner').hidden = true;
+      state.installBannerDismissed = true;
+      save();
+    });
+  }
+
   /* ---------- 时光轴 ---------- */
   function renderTimeline() {
     var list = $('timeline-list');
@@ -417,7 +471,9 @@
           '<div class="tl-a' + (w.done ? ' done' : '') + '">' + esc(w.goal) + '</div></div>';
       }
       if (w.anticipation.trim()) {
-        html += '<div class="tl-item"><div class="tl-q">✨ 最期待</div>' +
+        var expBadge = w.fulfilled === true ? '<span class="tl-badge">如愿 ✓</span>' :
+          w.fulfilled === false ? '<span class="tl-badge tl-badge-muted">未如愿</span>' : '';
+        html += '<div class="tl-item"><div class="tl-q">✨ 最期待' + expBadge + '</div>' +
           '<div class="tl-a">' + esc(w.anticipation) + '</div></div>';
       }
       if (w.highlight.trim()) {
@@ -434,17 +490,19 @@
     $('year-label').textContent = viewYear + ' 年';
     $('next-year').disabled = (viewYear >= isoWeek(new Date()).year);
 
-    var count = 0, doneCount = 0;
+    var count = 0, doneCount = 0, fulfilledCount = 0;
     var highlights = [];
     Object.keys(state.weeks).forEach(function (key) {
       if (+key.split('-W')[0] !== viewYear || !hasContent(key)) return;
       count++;
       var w = getWeek(key);
       if (w.done && w.goal.trim()) doneCount++;
+      if (w.fulfilled === true && w.anticipation.trim()) fulfilledCount++;
       if (w.highlight.trim()) highlights.push({ key: key, text: w.highlight });
     });
     $('stat-weeks').textContent = count;
     $('stat-done').textContent = doneCount;
+    $('stat-fulfilled').textContent = fulfilledCount;
     $('stat-streak').textContent = streak();
 
     // 52/53 格圆点
@@ -532,6 +590,29 @@
     download('worth-a-week-backup.json', JSON.stringify(state, null, 2), 'application/json');
   });
 
+  // 导出 Markdown:按年/周排好的长文,可直接导入笔记软件
+  $('m-md').addEventListener('click', function () {
+    closeSheet(menuSheet, menuMask);
+    var keys = Object.keys(state.weeks).filter(hasContent).sort().reverse();
+    if (!keys.length) { alert('还没有记录可导出'); return; }
+    var lines = ['# 这周值得 · 记录导出', ''];
+    var lastYear = '';
+    keys.forEach(function (key) {
+      var year = key.split('-W')[0];
+      if (year !== lastYear) { lines.push('', '# ' + year + ' 年', ''); lastYear = year; }
+      var w = getWeek(key);
+      lines.push('## ' + fmtKey(key) + '(' + fmtRange(key) + ')');
+      if (w.goal.trim()) lines.push('- 🎯 想完成:' + w.goal.trim() + (w.done ? '(完成了 ✓)' : ''));
+      if (w.anticipation.trim()) {
+        lines.push('- ✨ 最期待:' + w.anticipation.trim() +
+          (w.fulfilled === true ? '(如愿 ✓)' : w.fulfilled === false ? '(未如愿)' : ''));
+      }
+      if (w.highlight.trim()) lines.push('- 🌅 没有白过,因为:' + w.highlight.trim());
+      lines.push('');
+    });
+    download('worth-a-week.md', lines.join('\n'), 'text/markdown;charset=utf-8');
+  });
+
   $('m-import').addEventListener('click', function () {
     closeSheet(menuSheet, menuMask);
     $('import-file').click();
@@ -545,7 +626,7 @@
       try {
         var d = JSON.parse(reader.result);
         if (!d || typeof d.weeks !== 'object') throw new Error('bad file');
-        state = { v: 1, weeks: d.weeks, seenOnboarding: true };
+        state = { v: 1, weeks: d.weeks, seenOnboarding: true, installBannerDismissed: true };
         save();
         renderWeek();
         alert('导入成功 ✓');
@@ -587,6 +668,7 @@
   renderWeek();
   initHints();
   initOnboarding();
+  initInstallBanner();
 
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function () {

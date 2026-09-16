@@ -1,4 +1,4 @@
-var CACHE = 'worth-a-week-v2';
+var CACHE = 'worth-a-week-v3';
 var ASSETS = [
   '.',
   'index.html',

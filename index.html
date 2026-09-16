@@ -33,17 +33,28 @@
       <div class="week-title">
         <div id="week-label" class="week-label"></div>
         <div id="week-range" class="week-range"></div>
+        <div id="week-context" class="week-context" hidden></div>
       </div>
       <button id="next-week" class="nav-btn" aria-label="下一周">›</button>
     </div>
 
     <div id="review-card" class="card review-card" hidden>
       <div class="q-label"><span class="q-emoji">🔁</span>先花 10 秒,回顾上周</div>
-      <div class="review-q" id="review-q"></div>
-      <div id="review-goal" class="review-goal"></div>
-      <div class="review-btns">
-        <button id="review-yes" class="btn btn-primary" type="button">完成了 ✓</button>
-        <button id="review-no" class="btn" type="button">没完成</button>
+      <div id="review-goal-block">
+        <div class="review-q" id="review-q-goal"></div>
+        <div id="review-goal" class="review-goal"></div>
+        <div class="review-btns">
+          <button id="review-yes" class="btn btn-primary" type="button">完成了 ✓</button>
+          <button id="review-no" class="btn" type="button">没完成</button>
+        </div>
+      </div>
+      <div id="review-exp-block">
+        <div class="review-q">你期待的:</div>
+        <div id="review-exp" class="review-goal"></div>
+        <div class="review-btns">
+          <button id="exp-yes" class="btn btn-primary" type="button">如愿了 ✓</button>
+          <button id="exp-no" class="btn" type="button">没有</button>
+        </div>
       </div>
     </div>
 
@@ -73,6 +84,11 @@
       </div>
     </div>
 
+    <div id="capsule-card" class="card capsule-card" hidden>
+      <div class="q-label"><span class="q-emoji">📮</span>去年这周</div>
+      <div id="capsule-body"></div>
+    </div>
+
     <div id="save-hint" class="save-hint"></div>
   </section>
 
@@ -97,6 +113,7 @@
       <div class="stat"><div id="stat-weeks" class="stat-num">0</div><div class="stat-label">已记录周数</div></div>
       <div class="stat"><div id="stat-streak" class="stat-num">0</div><div class="stat-label">连续记录(周)</div></div>
       <div class="stat"><div id="stat-done" class="stat-num">0</div><div class="stat-label">完成的目标</div></div>
+      <div class="stat"><div id="stat-fulfilled" class="stat-num">0</div><div class="stat-label">期待成真</div></div>
     </div>
 
     <div class="section-title">每周一格</div>
@@ -108,6 +125,12 @@
   </section>
 
 </main>
+
+<!-- ===== 安装引导(仅 iOS Safari 且未安装时显示) ===== -->
+<div id="install-banner" class="install-banner" hidden>
+  <span>📲 点 Safari 底部「分享」→「添加到主屏幕」,获得完整 App 体验</span>
+  <button id="install-close" class="install-close" aria-label="关闭">×</button>
+</div>
 
 <!-- ===== 底部 Tab ===== -->
 <nav class="tabbar">
@@ -122,6 +145,7 @@
   <button id="m-export" class="menu-item">📤 导出备份(JSON)</button>
   <button id="m-import" class="menu-item">📥 导入备份</button>
   <button id="m-ics" class="menu-item">📅 添加每周日提醒到日历</button>
+  <button id="m-md" class="menu-item">📝 导出 Markdown</button>
   <button id="m-about" class="menu-item">ℹ️ 关于</button>
   <button id="m-cancel" class="menu-item menu-cancel">取消</button>
 </div>
