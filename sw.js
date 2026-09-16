@@ -1,4 +1,4 @@
-var CACHE = 'worth-a-week-v4';
+var CACHE = 'worth-a-week-v5';
 var ASSETS = [
   '.',
   'index.html',
@@ -8,7 +8,15 @@ var ASSETS = [
   'icons/icon-180.png',
   'icons/icon-192.png',
   'icons/icon-512.png',
-  'icons/favicon-32.png'
+  'icons/favicon-32.png',
+  'icons/splash-1206x2622.png',
+  'icons/splash-1320x2868.png',
+  'icons/splash-1260x2736.png',
+  'icons/splash-1179x2556.png',
+  'icons/splash-1290x2796.png',
+  'icons/splash-1170x2532.png',
+  'icons/splash-1125x2436.png',
+  'icons/splash-750x1334.png'
 ];
 
 self.addEventListener('install', function (e) {

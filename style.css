@@ -434,3 +434,10 @@ textarea::placeholder { color: var(--muted); opacity: 0.7; }
 
 /* ===== 菜单项右侧提示 ===== */
 .menu-hint { float: right; color: var(--muted); font-size: 13px; padding-top: 2px; }
+
+/* ===== 时光轴卡片可点击(跳回该周编辑) ===== */
+.tl-card { cursor: pointer; transition: transform 0.1s ease; }
+.tl-card:active { transform: scale(0.98); }
+
+/* ===== 年终总结图按钮 ===== */
+.y-share { width: 100%; padding: 14px; font-size: 16px; margin: 18px 0 8px; }

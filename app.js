@@ -378,13 +378,13 @@
     $('share-overlay').hidden = false;
   }
 
-  $('share-btn').addEventListener('click', function () {
-    drawShareCard();
+  // 画布转图片并分享:优先系统分享菜单,失败回落为长按保存
+  function shareCanvas(filename) {
     $('share-canvas').toBlob(function (blob) {
       if (!blob) return;
       var file = null;
       try {
-        file = new File([blob], 'worth-a-week-' + viewKey + '.png', { type: 'image/png' });
+        file = new File([blob], filename, { type: 'image/png' });
       } catch (e) {}
       if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
         navigator.share({ files: [file] }).catch(function (err) {
@@ -394,11 +394,138 @@
         showShareOverlay(blob);
       }
     }, 'image/png');
+  }
+
+  $('share-btn').addEventListener('click', function () {
+    drawShareCard();
+    shareCanvas('worth-a-week-' + viewKey + '.png');
   });
 
   $('share-close').addEventListener('click', function () {
     $('share-overlay').hidden = true;
     URL.revokeObjectURL($('share-img').src);
+  });
+
+  /* ---------- 年终总结图 ---------- */
+  function truncate(s, n) {
+    s = s.replace(/\s+/g, ' ').trim();
+    return s.length > n ? s.slice(0, n) + '…' : s;
+  }
+
+  function roundRect(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  function drawYearCard() {
+    var stats = collectYear(viewYear);
+    var canvas = $('share-canvas');
+    var W = 1080, H = 1920, pad = 100;
+    canvas.width = W;
+    canvas.height = H;
+    var ctx = canvas.getContext('2d');
+    var bg = '#f7f3ec', accent = '#d96c47', ink = '#2b2620', muted = '#9a9186', line = '#eee7dc';
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = accent;
+    ctx.fillRect(0, 0, W, 14);
+    ctx.textBaseline = 'top';
+    ctx.textAlign = 'left';
+
+    ctx.fillStyle = accent;
+    ctx.font = '600 38px ' + SHARE_FONT;
+    ctx.fillText('这周值得 · 年度回顾', pad, 96);
+
+    ctx.fillStyle = ink;
+    ctx.font = '700 150px Georgia, serif';
+    ctx.fillText(String(viewYear), pad, 150);
+
+    ctx.fillStyle = muted;
+    ctx.font = '32px ' + SHARE_FONT;
+    ctx.fillText('一年攒下的「没有白过」', pad, 332);
+
+    // 四格统计
+    var statItems = [
+      ['已记录周数', stats.count],
+      ['连续记录(周)', streak()],
+      ['完成的目标', stats.doneCount],
+      ['期待成真', stats.fulfilledCount]
+    ];
+    var cellW = (W - pad * 2 - 28) / 2, cellH = 168;
+    for (var i = 0; i < statItems.length; i++) {
+      var cx = pad + (i % 2) * (cellW + 28);
+      var cy = 424 + Math.floor(i / 2) * (cellH + 28);
+      ctx.fillStyle = '#ffffff';
+      roundRect(ctx, cx, cy, cellW, cellH, 24);
+      ctx.fill();
+      ctx.fillStyle = accent;
+      ctx.font = '700 64px ' + SHARE_FONT;
+      ctx.fillText(String(statItems[i][1]), cx + 36, cy + 30);
+      ctx.fillStyle = muted;
+      ctx.font = '27px ' + SHARE_FONT;
+      ctx.fillText(statItems[i][0], cx + 36, cy + 108);
+    }
+
+    // 每周一格圆点图
+    var dotTitleY = 856;
+    ctx.fillStyle = muted;
+    ctx.font = '28px ' + SHARE_FONT;
+    ctx.fillText('每周一格', pad, dotTitleY);
+    var total = weeksInYear(viewYear);
+    var cols = 13, r = 13;
+    var gap = (W - pad * 2 - r * 2) / (cols - 1);
+    var startY = dotTitleY + 78;
+    for (var wk = 1; wk <= total; wk++) {
+      var key = viewYear + '-W' + (wk < 10 ? '0' : '') + wk;
+      var dx = pad + r + ((wk - 1) % cols) * gap;
+      var dy = startY + Math.floor((wk - 1) / cols) * gap;
+      ctx.beginPath();
+      ctx.arc(dx, dy, r, 0, Math.PI * 2);
+      ctx.fillStyle = hasContent(key) ? accent : line;
+      ctx.fill();
+      if (key === todayKey) {
+        ctx.beginPath();
+        ctx.arc(dx, dy, r + 7, 0, Math.PI * 2);
+        ctx.strokeStyle = accent;
+        ctx.lineWidth = 3;
+        ctx.stroke();
+      }
+    }
+
+    // 「没有白过」精选(最近 5 条)
+    var hlY = 1210;
+    ctx.fillStyle = accent;
+    ctx.font = '600 36px ' + SHARE_FONT;
+    ctx.fillText('这一年,「没有白过」的理由', pad, hlY);
+    var items = stats.highlights.slice(0, 5);
+    for (var j = 0; j < items.length; j++) {
+      var yy = hlY + 84 + j * 78;
+      ctx.fillStyle = muted;
+      ctx.font = '26px ' + SHARE_FONT;
+      ctx.fillText('第' + parseInt(items[j].key.split('-W')[1], 10) + '周', pad, yy + 5);
+      ctx.fillStyle = ink;
+      ctx.font = '32px ' + SHARE_FONT;
+      ctx.fillText(truncate(items[j].text, 24), pad + 116, yy);
+    }
+
+    ctx.textAlign = 'center';
+    ctx.fillStyle = muted;
+    ctx.font = '26px ' + SHARE_FONT;
+    ctx.fillText('每周三件事:一个目标、一份期待、一个没有白过的理由', W / 2, H - 140);
+    ctx.fillStyle = accent;
+    ctx.font = '600 34px ' + SHARE_FONT;
+    ctx.fillText('「这周值得」', W / 2, H - 92);
+    ctx.textAlign = 'left';
+  }
+
+  $('y-share-btn').addEventListener('click', function () {
+    drawYearCard();
+    shareCanvas('worth-a-week-' + viewYear + '-year.png');
   });
 
   /* ---------- 备份提醒:超过 30 天没备份时,本周页顶部出现提醒条 ---------- */
@@ -509,29 +636,43 @@
           '<div class="tl-a">' + esc(w.highlight) + '</div></div>';
       }
       card.innerHTML = html;
+      card.title = '点我回到这一周编辑';
+      card.addEventListener('click', function () {
+        viewKey = key;
+        renderWeek();
+        switchView('view-week');
+      });
       list.appendChild(card);
     });
   }
 
   /* ---------- 年度 ---------- */
-  function renderYear() {
-    $('year-label').textContent = viewYear + ' 年';
-    $('next-year').disabled = (viewYear >= isoWeek(new Date()).year);
-
+  function collectYear(year) {
     var count = 0, doneCount = 0, fulfilledCount = 0;
     var highlights = [];
     Object.keys(state.weeks).forEach(function (key) {
-      if (+key.split('-W')[0] !== viewYear || !hasContent(key)) return;
+      if (+key.split('-W')[0] !== year || !hasContent(key)) return;
       count++;
       var w = getWeek(key);
       if (w.done && w.goal.trim()) doneCount++;
       if (w.fulfilled === true && w.anticipation.trim()) fulfilledCount++;
       if (w.highlight.trim()) highlights.push({ key: key, text: w.highlight });
     });
+    highlights.sort(function (a, b) { return a.key < b.key ? 1 : -1; });
+    return { count: count, doneCount: doneCount, fulfilledCount: fulfilledCount, highlights: highlights };
+  }
+
+  function renderYear() {
+    $('year-label').textContent = viewYear + ' 年';
+    $('next-year').disabled = (viewYear >= isoWeek(new Date()).year);
+
+    var stats = collectYear(viewYear);
+    var count = stats.count, highlights = stats.highlights;
     $('stat-weeks').textContent = count;
-    $('stat-done').textContent = doneCount;
-    $('stat-fulfilled').textContent = fulfilledCount;
+    $('stat-done').textContent = stats.doneCount;
+    $('stat-fulfilled').textContent = stats.fulfilledCount;
     $('stat-streak').textContent = streak();
+    $('y-share-btn').hidden = count === 0;
 
     // 52/53 格圆点
     var grid = $('year-grid');
@@ -548,7 +689,6 @@
     // 「没有白过」合集
     var box = $('year-highlights');
     box.innerHTML = '';
-    highlights.sort(function (a, b) { return a.key < b.key ? 1 : -1; });
     $('year-empty').hidden = highlights.length > 0;
     highlights.forEach(function (h) {
       var item = document.createElement('div');
@@ -574,15 +714,16 @@
 
   /* ---------- Tab 切换 ---------- */
   var tabs = document.querySelectorAll('.tab');
-  tabs.forEach(function (tab) {
-    tab.addEventListener('click', function () {
-      tabs.forEach(function (t) { t.classList.toggle('active', t === tab); });
-      ['view-week', 'view-timeline', 'view-year'].forEach(function (id) {
-        $(id).hidden = (id !== tab.dataset.view);
-      });
-      if (tab.dataset.view === 'view-timeline') renderTimeline();
-      if (tab.dataset.view === 'view-year') renderYear();
+  function switchView(id) {
+    tabs.forEach(function (t) { t.classList.toggle('active', t.dataset.view === id); });
+    ['view-week', 'view-timeline', 'view-year'].forEach(function (v) {
+      $(v).hidden = (v !== id);
     });
+    if (id === 'view-timeline') renderTimeline();
+    if (id === 'view-year') renderYear();
+  }
+  tabs.forEach(function (tab) {
+    tab.addEventListener('click', function () { switchView(tab.dataset.view); });
   });
 
   /* ---------- 菜单 ---------- */
