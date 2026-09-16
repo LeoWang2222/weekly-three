@@ -124,6 +124,7 @@
     renderContext();
     renderReview();
     renderCapsule();
+    renderBackupNag();
     window.scrollTo(0, 0);
   }
 
@@ -400,6 +401,33 @@
     URL.revokeObjectURL($('share-img').src);
   });
 
+  /* ---------- 备份提醒:超过 30 天没备份时,本周页顶部出现提醒条 ---------- */
+  var THIRTY_DAYS = 30 * 86400000;
+
+  function renderBackupNag() {
+    var nag = $('backup-nag');
+    var hasAny = Object.keys(state.weeks).some(hasContent);
+    var ref = Math.max(state.lastBackupAt || 0, state.backupNagDismissedAt || 0);
+    var overdue = Date.now() - ref > THIRTY_DAYS;
+    var show = viewKey === todayKey && hasAny && overdue;
+    nag.hidden = !show;
+    if (show) {
+      $('backup-nag-text').textContent = state.lastBackupAt
+        ? '💾 已经 ' + Math.floor((Date.now() - state.lastBackupAt) / 86400000) + ' 天没备份了,点我导出一份保险'
+        : '💾 还没有备份过,点我导出一份保险';
+    }
+  }
+
+  $('backup-nag-text').addEventListener('click', function () {
+    doExport();
+    renderBackupNag();
+  });
+  $('backup-nag-close').addEventListener('click', function () {
+    state.backupNagDismissedAt = Date.now();
+    save();
+    renderBackupNag();
+  });
+
   /* ---------- 首次引导 ---------- */
   var OB_STEPS = [
     { emoji: '🎯', title: '周一,立一个小目标', text: '「这周我最想完成的一件事」——一件就够,够得着的那种。' },
@@ -563,7 +591,14 @@
   var menuSheet = $('menu-sheet'), menuMask = $('menu-mask');
   var aboutSheet = $('about-sheet'), aboutMask = $('about-mask');
 
-  $('menu-btn').addEventListener('click', function () { openSheet(menuSheet, menuMask); });
+  $('menu-btn').addEventListener('click', function () {
+    $('m-export-hint').textContent = state.lastBackupAt
+      ? (Math.floor((Date.now() - state.lastBackupAt) / 86400000) === 0
+          ? '今天已备份'
+          : '上次:' + Math.floor((Date.now() - state.lastBackupAt) / 86400000) + ' 天前')
+      : '还没备份过';
+    openSheet(menuSheet, menuMask);
+  });
   menuMask.addEventListener('click', function () { closeSheet(menuSheet, menuMask); });
   $('m-cancel').addEventListener('click', function () { closeSheet(menuSheet, menuMask); });
   $('m-about').addEventListener('click', function () {
@@ -573,8 +608,17 @@
   aboutMask.addEventListener('click', function () { closeSheet(aboutSheet, aboutMask); });
   $('about-close').addEventListener('click', function () { closeSheet(aboutSheet, aboutMask); });
 
-  function download(filename, content, type) {
+  // 优先调起 iOS 原生分享菜单(可存文件/发微信/AirDrop);不支持则回落为下载
+  function exportFile(filename, content, type) {
     var blob = new Blob([content], { type: type });
+    var file = null;
+    try {
+      file = new File([blob], filename, { type: type });
+    } catch (e) {}
+    if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
+      navigator.share({ files: [file] }).catch(function () {});
+      return;
+    }
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a');
     a.href = url;
@@ -585,9 +629,15 @@
     setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
   }
 
+  function doExport() {
+    state.lastBackupAt = Date.now();
+    save();
+    exportFile('worth-a-week-backup.json', JSON.stringify(state, null, 2), 'application/json');
+  }
+
   $('m-export').addEventListener('click', function () {
     closeSheet(menuSheet, menuMask);
-    download('worth-a-week-backup.json', JSON.stringify(state, null, 2), 'application/json');
+    doExport();
   });
 
   // 导出 Markdown:按年/周排好的长文,可直接导入笔记软件
@@ -610,7 +660,7 @@
       if (w.highlight.trim()) lines.push('- 🌅 没有白过,因为:' + w.highlight.trim());
       lines.push('');
     });
-    download('worth-a-week.md', lines.join('\n'), 'text/markdown;charset=utf-8');
+    exportFile('worth-a-week.md', lines.join('\n'), 'text/markdown;charset=utf-8');
   });
 
   $('m-import').addEventListener('click', function () {
@@ -661,7 +711,7 @@
       'BEGIN:VALARM', 'TRIGGER:PT0M', 'ACTION:DISPLAY', 'DESCRIPTION:周日回顾', 'END:VALARM',
       'END:VEVENT', 'END:VCALENDAR'
     ].join('\r\n');
-    download('worth-a-week-reminder.ics', ics, 'text/calendar');
+    exportFile('worth-a-week-reminder.ics', ics, 'text/calendar');
   });
 
   /* ---------- 启动 ---------- */
