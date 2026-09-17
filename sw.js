@@ -1,4 +1,4 @@
-var CACHE = 'worth-a-week-v5';
+var CACHE = 'worth-a-week-v6';
 var ASSETS = [
   '.',
   'index.html',
@@ -8,6 +8,7 @@ var ASSETS = [
   'icons/icon-180.png',
   'icons/icon-192.png',
   'icons/icon-512.png',
+  'icons/icon-512-maskable.png',
   'icons/favicon-32.png',
   'icons/splash-1206x2622.png',
   'icons/splash-1320x2868.png',

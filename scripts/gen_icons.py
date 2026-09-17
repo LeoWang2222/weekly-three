@@ -1,104 +1,104 @@
-"""生成 App 图标:暖陶土色圆角方块 + 白色「值」字。
+"""从 AI 生成的主图标制作 PWA 图标和 iPhone 启动画面。
+
 用法: python scripts/gen_icons.py
-需要 Pillow;Windows 下使用微软雅黑字体绘制中文。
+需要 Pillow。
 """
-import os
+
+from pathlib import Path
+
 from PIL import Image, ImageDraw, ImageFont
 
-ROOT = os.path.join(os.path.dirname(__file__), "..")
-OUT = os.path.join(ROOT, "icons")
 
-BG = (217, 108, 71, 255)      # --accent 暖陶土色
-FG = (255, 250, 244, 255)     # 暖白
-RADIUS_RATIO = 0.22           # 圆角(iOS 风格 squircle 的近似)
+ROOT = Path(__file__).resolve().parent.parent
+OUT = ROOT / "icons"
+MASTER = OUT / "icon-master.png"
+
+CREAM = (247, 243, 236, 255)
+ACCENT = (217, 108, 71, 255)
 
 FONT_CANDIDATES = [
-    r"C:\Windows\Fonts\msyhbd.ttc",   # 微软雅黑 Bold
-    r"C:\Windows\Fonts\msyh.ttc",
-    r"C:\Windows\Fonts\simhei.ttf",
+    Path(r"C:\Windows\Fonts\msyhbd.ttc"),
+    Path(r"C:\Windows\Fonts\msyh.ttc"),
+    Path(r"C:\Windows\Fonts\simhei.ttf"),
+]
+
+ICON_SPECS = [
+    ("icon-180.png", 180),
+    ("icon-192.png", 192),
+    ("icon-512.png", 512),
+    ("icon-512-maskable.png", 512),
+    ("favicon-32.png", 32),
+]
+
+# iPhone 竖屏启动图尺寸（像素 = 逻辑分辨率 × 3 或 × 2）
+SPLASH_SIZES = [
+    (1206, 2622),
+    (1320, 2868),
+    (1260, 2736),
+    (1179, 2556),
+    (1290, 2796),
+    (1170, 2532),
+    (1125, 2436),
+    (750, 1334),
 ]
 
 
-def load_font(size):
+def load_font(size: int):
     for path in FONT_CANDIDATES:
-        if os.path.exists(path):
-            return ImageFont.truetype(path, size)
+        if path.exists():
+            return ImageFont.truetype(str(path), size)
     return ImageFont.load_default()
 
 
-def rounded_square(size, radius_ratio=RADIUS_RATIO):
-    img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+def load_master() -> Image.Image:
+    if not MASTER.exists():
+        raise FileNotFoundError(f"缺少主图标: {MASTER}")
+    return Image.open(MASTER).convert("RGB")
+
+
+def squircle_mask(size: int) -> Image.Image:
     mask = Image.new("L", (size, size), 0)
-    d = ImageDraw.Draw(mask)
-    d.rounded_rectangle([0, 0, size - 1, size - 1],
-                        radius=int(size * radius_ratio), fill=255)
-    img.paste(Image.new("RGBA", (size, size), BG), (0, 0), mask)
-    return img
+    ImageDraw.Draw(mask).rounded_rectangle(
+        (0, 0, size - 1, size - 1), radius=int(size * 0.225), fill=255
+    )
+    return mask
 
 
-def draw_icon(size, full_bleed=False):
-    img = rounded_square(size, radius_ratio=0 if full_bleed else RADIUS_RATIO)
-    font = load_font(int(size * 0.58))
-    d = ImageDraw.Draw(img)
-    d.text((size / 2, size / 2), "值", font=font, fill=FG,
-           anchor="mm")
-    return img
+def make_splash(master: Image.Image, width: int, height: int) -> Image.Image:
+    canvas = Image.new("RGBA", (width, height), CREAM)
+    icon_size = int(min(width, height) * 0.26)
+    icon = master.resize((icon_size, icon_size), Image.Resampling.LANCZOS).convert("RGBA")
+    icon.putalpha(squircle_mask(icon_size))
+
+    icon_x = (width - icon_size) // 2
+    icon_y = int(height * 0.40) - icon_size // 2
+    canvas.alpha_composite(icon, (icon_x, icon_y))
+
+    draw = ImageDraw.Draw(canvas)
+    font = load_font(int(width * 0.055))
+    draw.text(
+        (width / 2, icon_y + icon_size + int(width * 0.085)),
+        "这周值得",
+        font=font,
+        fill=ACCENT,
+        anchor="mm",
+    )
+    return canvas.convert("RGB")
 
 
-def main():
-    os.makedirs(OUT, exist_ok=True)
-    specs = [
-        ("icon-180.png", 180, False),          # apple-touch-icon
-        ("icon-192.png", 192, False),
-        ("icon-512.png", 512, False),
-        ("icon-512-maskable.png", 512, True),  # maskable 全幅,安全区内居中
-        ("favicon-32.png", 32, False),
-    ]
-    for name, size, full_bleed in specs:
-        icon = draw_icon(size, full_bleed)
-        if full_bleed:
-            # maskable:缩小字形,留出安全区
-            icon = rounded_square(size, radius_ratio=0)
-            font = load_font(int(size * 0.46))
-            d = ImageDraw.Draw(icon)
-            d.text((size / 2, size / 2), "值", font=font, fill=FG, anchor="mm")
-        icon.save(os.path.join(OUT, name))
-        print("ok", name)
-    for w, h in SPLASH_SIZES:
-        name = "splash-%dx%d.png" % (w, h)
-        make_splash(w, h).save(os.path.join(OUT, name))
+def main() -> None:
+    OUT.mkdir(parents=True, exist_ok=True)
+    master = load_master()
+
+    for name, size in ICON_SPECS:
+        icon = master.resize((size, size), Image.Resampling.LANCZOS)
+        icon.save(OUT / name, optimize=True)
         print("ok", name)
 
-
-# iPhone 竖屏启动图尺寸(像素 = 逻辑分辨率 × 3 或 ×2)
-SPLASH_SIZES = [
-    (1206, 2622),  # iPhone 17 / 17 Pro(6.3")
-    (1320, 2868),  # iPhone 17 Pro Max(6.9")
-    (1260, 2736),  # iPhone Air(6.5")
-    (1179, 2556),  # iPhone 14 Pro / 15 / 16(6.1")
-    (1290, 2796),  # iPhone 15/16 Plus / Pro Max(6.7")
-    (1170, 2532),  # iPhone 12 / 13 / 14(6.1")
-    (1125, 2436),  # iPhone X / XS / 11 Pro(5.8")
-    (750, 1334),   # iPhone 8 / SE2/3(4.7")
-]
-
-CREAM = (247, 243, 236, 255)   # --bg 浅色
-ACCENT = (217, 108, 71, 255)
-
-
-def make_splash(w, h):
-    """暖白底 + 居中圆角图标 + 下方「这周值得」字样。"""
-    img = Image.new("RGBA", (w, h), CREAM)
-    icon_size = int(min(w, h) * 0.26)
-    icon = draw_icon(icon_size)
-    ix = (w - icon_size) // 2
-    iy = int(h * 0.40) - icon_size // 2
-    img.paste(icon, (ix, iy), icon)
-    d = ImageDraw.Draw(img)
-    font = load_font(int(w * 0.055))
-    d.text((w / 2, iy + icon_size + int(w * 0.06)), "这周值得",
-           font=font, fill=ACCENT, anchor="mm")
-    return img
+    for width, height in SPLASH_SIZES:
+        name = f"splash-{width}x{height}.png"
+        make_splash(master, width, height).save(OUT / name, optimize=True)
+        print("ok", name)
 
 
 if __name__ == "__main__":
